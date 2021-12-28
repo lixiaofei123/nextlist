@@ -213,7 +213,7 @@ auth:
 然后启动NextList后端服务
 
 ```bash
-docker run --detach  --name nextlist  --restart always --link  filelist_db  -v /data/nextlist:/data mrlee326/nextlist -p 8081:8081  -c /data/config.yaml -d false
+docker run --detach  --name nextlist  --restart always --link  nextlist_db  -v /data/nextlist:/data mrlee326/nextlist -p 8081:8081  -c /data/config.yaml -d false
 ```
 
 ### 启动前端服务
