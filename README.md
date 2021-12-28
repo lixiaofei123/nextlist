@@ -7,6 +7,8 @@
 
 **NextList** 下一个列表程序。
 
+演示地址 [https://demo.326256.xyz](https://demo.326256.xyz)。演示地址使用Onedriver作为存储。
+
 目前支持的存储有
 
  - [x] 对象存储
