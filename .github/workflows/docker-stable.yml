@@ -1,4 +1,4 @@
-name: 稳定版本
+name: 稳定版
 
 on:
   push:
