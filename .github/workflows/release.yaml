@@ -1,4 +1,4 @@
-name: 构建二进制程序
+name: 二进制程序
 
 on: 
   release:
