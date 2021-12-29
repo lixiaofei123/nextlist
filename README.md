@@ -13,7 +13,7 @@
 
  - [x] 对象存储
  - [x] 本地文件系统
- - [x] 阿里云盘
+ - [x] 阿里云盘 (alidriver存储的代码主要来自于[Alist](https://github.com/Xhofe/alist))
  - [x] OneDriver
 
 目前支持的功能有
