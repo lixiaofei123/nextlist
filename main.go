@@ -36,7 +36,7 @@ func init() {
 		timezone = "Asia/Shanghai"
 	}
 
-	loc, err := time.LoadLocation("Africa/Cairo")
+	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		log.Panic(err)
 	}
