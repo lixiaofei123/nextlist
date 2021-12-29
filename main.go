@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"time"
 
 	echo "github.com/labstack/echo/v4"
 	echo_middleware "github.com/labstack/echo/v4/middleware"
@@ -29,19 +27,6 @@ var sdriver driver.Driver
 func init() {
 
 	var err error
-
-	// 时区
-	timezone := os.Getenv("TZ")
-	if timezone == "" {
-		timezone = "Asia/Shanghai"
-	}
-
-	loc, err := time.LoadLocation(timezone)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	time.Local = loc
 
 	var configPath string
 	flag.StringVar(&configPath, "c", "./config.yaml", "配置文件地址")
