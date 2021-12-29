@@ -9,6 +9,7 @@ FROM alpine:3.9
 RUN apk add --no-cache ca-certificates
 COPY --from=build /build/nextlist /usr/local/bin/nextlist
 RUN apk add -U tzdata
+ENV TZ=Asia/Shanghai
 EXPOSE 8081
 ENTRYPOINT ["nextlist"]
 CMD ["-c","./config.yaml"]
