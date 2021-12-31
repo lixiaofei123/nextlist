@@ -212,7 +212,6 @@ func (app *Application) Handle(controller interface{}) {
 		if len(matches) > 0 {
 			if matches[0] == "Get" || matches[0] == "Post" || matches[0] == "Put" || matches[0] == "Delete" {
 				path := strings.ToLower(GetRouterPath(matches[1:], method))
-				fmt.Println(matches[0], "--->", path)
 				if matches[0] == "Get" {
 					app.r.GET(path, HandlerFunc(controller, method))
 				}
