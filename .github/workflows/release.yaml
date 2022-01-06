@@ -27,4 +27,5 @@ jobs:
         project_path: "./"
         binary_name: "nextlist"
         retry: 10
+        overwrite: true
         extra_files: LICENSE README.md
