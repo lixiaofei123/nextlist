@@ -22,4 +22,5 @@ jobs:
         goarch: ${{ matrix.goarch }}
         project_path: "./"
         binary_name: "nextlist"
+        retry: 10
         extra_files: LICENSE README.md
