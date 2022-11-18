@@ -27,7 +27,10 @@ var refreshTokenLock sync.Locker
 
 func init() {
 	refreshTokenLock = &sync.Mutex{}
-	RegsiterDriver("onedriver", &OneDriver{})
+	RegsiterDriver(DriveType{
+		Name:     "onedriver",
+		ShowName: "OneDriver",
+	}, &OneDriver{}, &OneDriverConfig{})
 }
 
 type OneDriverConfig struct {
@@ -51,26 +54,16 @@ func (d *OneDriver) Check() error {
 
 }
 
-func (d *OneDriver) InitConfig(config interface{}) error {
+func (d *OneDriver) initConfig(config interface{}) error {
 
-	data, err := json.Marshal(config)
-	if err != nil {
-		return err
-	}
-
-	onedriveConfig := new(OneDriverConfig)
-	err = json.Unmarshal(data, onedriveConfig)
-	if err != nil {
-		return err
-	}
-
+	onedriveConfig := config.(*OneDriverConfig)
 	d.config = *onedriveConfig
 
 	if d.config.Path == "" {
 		d.config.Path = "/"
 	}
 
-	err = d.RefresonToken()
+	err := d.RefresonToken()
 	if err != nil {
 		return err
 	}

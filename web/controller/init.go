@@ -62,6 +62,12 @@ func (c *InitController) PostCheckDriver(ctx echo.Context, driverConfig configs.
 	return HandleData("ok", nil)
 }
 
+func (c *InitController) GetDriverprops(ctx echo.Context) mvc.Result {
+
+	props := driver.GetDriverProps()
+	return HandleData(props, nil)
+}
+
 func (c *InitController) PostRestart(ctx echo.Context) mvc.Result {
 
 	// 退出程序
@@ -71,12 +77,7 @@ func (c *InitController) PostRestart(ctx echo.Context) mvc.Result {
 }
 
 func checkDriver(driverConfig *configs.DriverConfig) error {
-	sdriver, err := driver.GetDriver(driverConfig.Name)
-	if err != nil {
-		return err
-	}
-
-	err = sdriver.InitConfig(driverConfig.Config)
+	sdriver, err := driver.GetDriver(driverConfig.Name, driverConfig.Config)
 	if err != nil {
 		return err
 	}

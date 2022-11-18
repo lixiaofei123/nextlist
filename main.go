@@ -34,14 +34,10 @@ func initApp() (driver.Driver, bool, error) {
 		return nil, false, err
 	}
 
-	driverName := configs.GlobalConfig.DriverConfig.Name
+	driverConfig := configs.GlobalConfig.DriverConfig
+	driverName := driverConfig.Name
 
-	sdriver, err := driver.GetDriver(driverName)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = sdriver.InitConfig(configs.GlobalConfig.DriverConfig.Config)
+	sdriver, err := driver.GetDriver(driverName, driverConfig.Config)
 	if err != nil {
 		log.Panic(err)
 	}

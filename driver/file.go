@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,7 +22,10 @@ import (
 )
 
 func init() {
-	RegsiterDriver("file", &FileDriver{})
+	RegsiterDriver(DriveType{
+		ShowName: "文件存储",
+		Name:     "file",
+	}, &FileDriver{}, &FileDriverConfig{})
 }
 
 type FileDriverConfig struct {
@@ -37,23 +39,12 @@ type FileDriver struct {
 	config FileDriverConfig
 }
 
-func (d *FileDriver) InitConfig(config interface{}) error {
+func (d *FileDriver) initConfig(config interface{}) error {
 
-	data, err := json.Marshal(config)
-	if err != nil {
-		return err
-	}
-
-	fileconfig := new(FileDriverConfig)
-	err = json.Unmarshal(data, fileconfig)
-	if err != nil {
-		return err
-	}
-
+	fileconfig := config.(*FileDriverConfig)
 	d.config = *fileconfig
 
 	return nil
-
 }
 
 const timeLayout string = "2006-01-02 15:04:05"

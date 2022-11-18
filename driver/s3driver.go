@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,7 +14,10 @@ import (
 )
 
 func init() {
-	RegsiterDriver("s3", &S3Driver{})
+	RegsiterDriver(DriveType{
+		Name:     "s3",
+		ShowName: "对象存储",
+	}, &S3Driver{}, &S3DriverConfig{})
 }
 
 type S3DriverConfig struct {
@@ -36,19 +38,9 @@ func (d *S3Driver) Check() error {
 	return err
 }
 
-func (d *S3Driver) InitConfig(config interface{}) error {
+func (d *S3Driver) initConfig(config interface{}) error {
 
-	data, err := json.Marshal(config)
-	if err != nil {
-		return err
-	}
-
-	s3config := new(S3DriverConfig)
-	err = json.Unmarshal(data, s3config)
-	if err != nil {
-		return err
-	}
-
+	s3config := config.(*S3DriverConfig)
 	creds := credentials.NewStaticCredentials(s3config.SecretID, s3config.SecretKey, "")
 
 	d.config = &aws.Config{
