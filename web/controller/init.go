@@ -61,6 +61,11 @@ func (c *InitController) PostCheckDriver(ctx echo.Context, driverConfig configs.
 	return HandleData("ok", nil)
 }
 
+func (c *InitController) PostRestart(ctx echo.Context) mvc.Result {
+
+	return HandleData("ok", nil)
+}
+
 func checkDriver(driverConfig *configs.DriverConfig) error {
 	sdriver, err := driver.GetDriver(driverConfig.Name)
 	if err != nil {
