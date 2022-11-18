@@ -106,11 +106,37 @@ func (d *S3Driver) DownloadUrl(configs DownloadConfigs, key string) ([]*Download
 
 	var downloads []*DownloadUrl = []*DownloadUrl{}
 
-	for _, config := range configs {
-		downloads = append(downloads, &DownloadUrl{
-			Title:       config.Title,
-			DownloadUrl: fmt.Sprintf("%s%s", config.Url, key),
+	if len(configs) != 0 {
+		for _, config := range configs {
+			downloads = append(downloads, &DownloadUrl{
+				Title:       config.Title,
+				DownloadUrl: fmt.Sprintf("%s%s", config.Url, key),
+			})
+		}
+	} else {
+		sess, err := session.NewSession(d.config)
+
+		if err != nil {
+			return nil, err
+		}
+
+		svc := s3.New(sess)
+
+		req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
+			Bucket: aws.String(d.Bucket),
+			Key:    aws.String(key),
 		})
+
+		downloadUrl, err := req.Presign(15 * time.Minute)
+		if err != nil {
+			return nil, err
+		}
+
+		downloads = append(downloads, &DownloadUrl{
+			Title:       "下载地址",
+			DownloadUrl: downloadUrl,
+		})
+
 	}
 
 	return downloads, nil

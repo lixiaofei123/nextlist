@@ -41,9 +41,9 @@ type File struct {
 }
 
 type PageResult struct {
-	Total     int               `json:"total"`
-	Page      int               `json:"page"`
-	PageCount int               `json:"pageCount"`
-	List      interface{}       `json:"list"`
-	Extend    map[string]string `json:"extend,omitempty"`
+	Total     int                    `json:"total"`
+	Page      int                    `json:"page"`
+	PageCount int                    `json:"pageCount"`
+	List      interface{}            `json:"list"`
+	Extend    map[string]interface{} `json:"extend,omitempty"`
 }

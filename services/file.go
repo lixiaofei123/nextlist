@@ -169,8 +169,9 @@ func (f *fileService) FindChildFiles(username string, fileId string, password st
 			return nil, err
 		}
 
-		var extend map[string]string = map[string]string{}
+		var extend map[string]interface{} = map[string]interface{}{}
 		extend["fileid"] = fileId
+		extend["permission"] = int(file.Permission)
 
 		return &models.PageResult{
 			Total:     int(total),
