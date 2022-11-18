@@ -45,6 +45,12 @@ type OneDriver struct {
 	AccessToken string
 }
 
+func (d *OneDriver) Check() error {
+	_, err := d.listDir("")
+	return err
+
+}
+
 func (d *OneDriver) InitConfig(config interface{}) error {
 
 	data, err := json.Marshal(config)

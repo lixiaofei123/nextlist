@@ -31,6 +31,11 @@ type S3Driver struct {
 	Bucket string
 }
 
+func (d *S3Driver) Check() error {
+	_, err := d.PreUploadUrl("/test_temp.log")
+	return err
+}
+
 func (d *S3Driver) InitConfig(config interface{}) error {
 
 	data, err := json.Marshal(config)

@@ -2,6 +2,7 @@ package driver
 
 import (
 	"errors"
+	"io"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -16,6 +17,8 @@ type File struct {
 }
 
 type Driver interface {
+	Check() error
+
 	InitConfig(config interface{}) error
 
 	InitDriver(e *echo.Echo, db *gorm.DB) error
@@ -54,3 +57,16 @@ type DownloadConfig struct {
 }
 
 type DownloadConfigs []*DownloadConfig
+
+type Json map[string]interface{}
+
+type UploaderFileStream struct {
+	Name       string
+	parentPath string
+	DataLength int
+	reader     io.ReadCloser
+}
+
+func (r UploaderFileStream) Read(p []byte) (n int, err error) {
+	return r.reader.Read(p)
+}

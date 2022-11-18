@@ -2,6 +2,8 @@ package configs
 
 import (
 	"io/ioutil"
+	"os"
+	"path"
 	"sync"
 
 	"github.com/go-yaml/yaml"
@@ -21,8 +23,7 @@ type DataBase struct {
 }
 
 type Auth struct {
-	Secret       string `yaml:"secret"`
-	PasswordSalt string `yaml:"passwordSalt"`
+	Secret string `yaml:"secret" json:"secret"`
 }
 
 type SiteConfig struct {
@@ -32,28 +33,27 @@ type SiteConfig struct {
 }
 
 type DriverConfig struct {
-	Name     string                 `yaml:"name"`
-	Config   map[string]interface{} `yaml:"config"`
-	Download driver.DownloadConfigs `yaml:"download"`
+	Name     string                 `yaml:"name" json:"name"`
+	Config   map[string]interface{} `yaml:"config" json:"config"`
+	Download driver.DownloadConfigs `yaml:"download" json:"download"`
 }
 
 type Config struct {
-	Port         int          `yaml:"port" json:"port"`
 	DataBase     DataBase     `yaml:"database" json:"database"`
 	Auth         Auth         `yaml:"auth" json:"auth"`
-	DriverConfig DriverConfig `yaml:"driver"`
-	SiteConfig   SiteConfig   `yaml:"site"`
+	DriverConfig DriverConfig `yaml:"driver" json:"driver"`
+	SiteConfig   SiteConfig   `yaml:"site" json:"site"`
 }
 
 var GlobalConfig *Config
-var configPath string
 
 var configLock sync.RWMutex = sync.RWMutex{}
 
-func InitConfig(configPath_ string) error {
-	configPath = configPath_
+const configFilePath string = "/app/config/config.yaml"
+
+func InitConfig() error {
 	var err error
-	GlobalConfig, err = readConfig(configPath)
+	GlobalConfig, err = readConfig(configFilePath)
 	return err
 }
 
@@ -76,21 +76,27 @@ func ReadConfig() Config {
 	return *GlobalConfig
 }
 
-func writeConfig(config Config, configPath string) error {
+func writeConfig(config *Config) error {
 	data, err := yaml.Marshal(config)
 	if err != nil {
 		return err
 	}
+
+	dir := path.Dir(configFilePath)
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
 	configLock.Lock()
-	err = ioutil.WriteFile(configPath, data, 0660)
+	err = ioutil.WriteFile(configFilePath, data, 0660)
 	configLock.Unlock()
 	if err != nil {
 		return err
 	}
-	readConfig(configPath)
 	return err
 }
 
-func WriteConfig(config Config) error {
-	return writeConfig(config, configPath)
+func WriteConfig(config *Config) error {
+	return writeConfig(config)
 }

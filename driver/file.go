@@ -58,6 +58,16 @@ func (d *FileDriver) InitConfig(config interface{}) error {
 
 const timeLayout string = "2006-01-02 15:04:05"
 
+func (d *FileDriver) Check() error {
+	tempPath := path.Join(d.config.Path, "test_temp")
+	err := ioutil.WriteFile(tempPath, []byte("test!!!"), 0755)
+	if err != nil {
+		return err
+	}
+	return os.Remove(tempPath)
+
+}
+
 func (d *FileDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
 
 	checkSignMiddleware := func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -271,7 +281,7 @@ func (d *FileDriver) DownloadUrl(configs DownloadConfigs, path string) ([]*Downl
 
 	downloadUrls := []*DownloadUrl{}
 
-	if d.config.SelfDownload {
+	if len(configs) == 0 {
 		expireTime := time.Now().Add(time.Hour * 2)
 		expireTimeStr := expireTime.Format(timeLayout)
 
@@ -285,14 +295,13 @@ func (d *FileDriver) DownloadUrl(configs DownloadConfigs, path string) ([]*Downl
 				DownloadUrl: fmt.Sprintf("%s/api/driver/file?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign),
 			})
 		}
-
-	}
-
-	for _, config := range configs {
-		downloadUrls = append(downloadUrls, &DownloadUrl{
-			Title:       config.Title,
-			DownloadUrl: fmt.Sprintf("%s%s", config.Url, path),
-		})
+	} else {
+		for _, config := range configs {
+			downloadUrls = append(downloadUrls, &DownloadUrl{
+				Title:       config.Title,
+				DownloadUrl: fmt.Sprintf("%s%s", config.Url, path),
+			})
+		}
 	}
 
 	return downloadUrls, nil

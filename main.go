@@ -21,26 +21,22 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-var debug bool
-var sdriver driver.Driver
-
-func init() {
+func initApp() (driver.Driver, bool, error) {
 
 	var err error
+	var debug bool
 
-	var configPath string
-	flag.StringVar(&configPath, "c", "./config.yaml", "配置文件地址")
 	flag.BoolVar(&debug, "d", false, "debug mode")
 	flag.Parse()
 
-	err = configs.InitConfig(configPath)
+	err = configs.InitConfig()
 	if err != nil {
-		log.Panic(err)
+		return nil, false, err
 	}
 
 	driverName := configs.GlobalConfig.DriverConfig.Name
 
-	sdriver, err = driver.GetDriver(driverName)
+	sdriver, err := driver.GetDriver(driverName)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -49,6 +45,8 @@ func init() {
 	if err != nil {
 		log.Panic(err)
 	}
+
+	return sdriver, debug, nil
 }
 
 func CustomHTTPErrorHandler(err error, c echo.Context) {
@@ -57,6 +55,51 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 }
 
 func main() {
+
+	// 初始化echo
+	e := echo.New()
+	e.IPExtractor = func(r *http.Request) string {
+		IPAddress := r.Header.Get("X-Real-Ip")
+		if IPAddress == "" {
+			IPAddress = r.Header.Get("X-Forwarded-For")
+		}
+		if IPAddress == "" {
+			IPAddress = r.RemoteAddr
+		}
+		return IPAddress
+	}
+
+	sdriver, debug, err := initApp()
+	if debug {
+		e.Use(echo_middleware.Logger())
+	}
+
+	e.Use(echo_middleware.Recover())
+	e.Use(echo_middleware.CORSWithConfig(echo_middleware.CORSConfig{
+		AllowOrigins:     []string{"*"},
+		AllowHeaders:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
+		AllowCredentials: true,
+	}))
+
+	e.HTTPErrorHandler = CustomHTTPErrorHandler
+
+	e.Router().Add("POST", "/site/status", func(ctx echo.Context) error {
+		if err != nil {
+			ctx.Response().Writer.Write([]byte(`{"ready":false}`))
+		} else {
+			ctx.Response().Writer.Write([]byte(`{"ready":true}`))
+		}
+
+		return nil
+	})
+	if err != nil {
+		// 站点未初始化，需要先进行初始化后再使用
+		init := e.Group("/init")
+		mvc.New(init).Handle(controller.NewInitController())
+		log.Println("初始化程序已经运行......")
+		e.Logger.Fatal(e.Start(":8081"))
+	}
 
 	gormDebugLevel := gormlogger.Error
 	if debug {
@@ -87,21 +130,6 @@ func main() {
 		log.Panic(err)
 	}
 
-	e := echo.New()
-	e.IPExtractor = func(r *http.Request) string {
-		IPAddress := r.Header.Get("X-Real-Ip")
-		if IPAddress == "" {
-			IPAddress = r.Header.Get("X-Forwarded-For")
-		}
-		if IPAddress == "" {
-			IPAddress = r.RemoteAddr
-		}
-		return IPAddress
-	}
-	if debug {
-		e.Use(echo_middleware.Logger())
-	}
-
 	err = sdriver.InitDriver(e, db)
 	if err != nil {
 		log.Panic(err)
@@ -109,16 +137,6 @@ func main() {
 
 	userSrv := services.NewUserService(db)
 	fileSrv := services.NewFileService(db, sdriver)
-
-	e.Use(echo_middleware.Recover())
-	e.Use(echo_middleware.CORSWithConfig(echo_middleware.CORSConfig{
-		AllowOrigins:     []string{"*"},
-		AllowHeaders:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
-		AllowCredentials: true,
-	}))
-
-	e.HTTPErrorHandler = CustomHTTPErrorHandler
 
 	user := e.Group("/user")
 	user.Use(middleware.NotMustAuthHandler)
@@ -135,5 +153,6 @@ func main() {
 	siteapi := e.Group("/site")
 	mvc.New(siteapi).Handle(controller.NewSiteController(userSrv))
 
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", configs.GlobalConfig.Port)))
+	log.Println("程序已经运行......")
+	e.Logger.Fatal(e.Start(":8081"))
 }
