@@ -70,7 +70,9 @@ func main() {
 	}
 
 	sdriver, debug, err := initApp()
-	e.Use(echo_middleware.Logger())
+	if debug {
+		e.Use(echo_middleware.Logger())
+	}
 
 	e.Use(echo_middleware.Recover())
 	e.Use(echo_middleware.CORSWithConfig(echo_middleware.CORSConfig{

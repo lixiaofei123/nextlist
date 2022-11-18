@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/labstack/echo/v4"
 	"github.com/lixiaofei123/nextlist/configs"
@@ -62,6 +63,9 @@ func (c *InitController) PostCheckDriver(ctx echo.Context, driverConfig configs.
 }
 
 func (c *InitController) PostRestart(ctx echo.Context) mvc.Result {
+
+	// 退出程序
+	os.Exit(0)
 
 	return HandleData("ok", nil)
 }
