@@ -21,6 +21,7 @@ FROM nginx
 COPY --from=web_build /build/dist/ /usr/share/nginx/html/
 COPY --from=build /build/nextlist /usr/local/bin/nextlist
 RUN ls /usr/share/nginx/html
+ENV TZ=Asia/Shanghai
 COPY docker-entrypoint.sh /
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
