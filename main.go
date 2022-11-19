@@ -80,7 +80,9 @@ func main() {
 
 	e.HTTPErrorHandler = CustomHTTPErrorHandler
 
-	e.Router().Add("POST", "/site/status", func(ctx echo.Context) error {
+	api := e.Group("/api/v1")
+
+	api.Add("POST", "/site/status", func(ctx echo.Context) error {
 		if err != nil {
 			ctx.Response().Writer.Write([]byte(`{"ready":false}`))
 		} else {
@@ -91,7 +93,7 @@ func main() {
 	})
 	if err != nil {
 		// 站点未初始化，需要先进行初始化后再使用
-		init := e.Group("/init")
+		init := api.Group("/init")
 		mvc.New(init).Handle(controller.NewInitController())
 		log.Println("初始化程序已经运行......")
 		e.Logger.Fatal(e.Start(":8081"))
@@ -126,7 +128,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	err = sdriver.InitDriver(e, db)
+	err = sdriver.InitDriver(api, db)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -134,19 +136,19 @@ func main() {
 	userSrv := services.NewUserService(db)
 	fileSrv := services.NewFileService(db, sdriver)
 
-	user := e.Group("/user")
+	user := api.Group("/user")
 	user.Use(middleware.NotMustAuthHandler)
 	mvc.New(user).Handle(controller.NewUserController(userSrv))
 
-	api := e.Group("/api")
-	api.Use(middleware.NotMustAuthHandler)
-	mvc.New(api).Handle(controller.NewFileController(fileSrv))
+	file := api.Group("/file")
+	file.Use(middleware.NotMustAuthHandler)
+	mvc.New(file).Handle(controller.NewFileController(fileSrv))
 
-	adminapi := e.Group("/admin/api")
+	adminapi := api.Group("/admin")
 	adminapi.Use(middleware.AuthHandler)
 	mvc.New(adminapi).Handle(controller.NewAdminFileController(fileSrv, sdriver))
 
-	siteapi := e.Group("/site")
+	siteapi := api.Group("/site")
 	mvc.New(siteapi).Handle(controller.NewSiteController(userSrv))
 
 	log.Println("程序已经运行......")

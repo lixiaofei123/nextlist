@@ -24,7 +24,7 @@ type Driver interface {
 
 	initConfig(config interface{}) error
 
-	InitDriver(e *echo.Echo, db *gorm.DB) error
+	InitDriver(e *echo.Group, db *gorm.DB) error
 
 	PreUploadUrl(key string) (string, error)
 
@@ -32,7 +32,7 @@ type Driver interface {
 
 	PreDeleteUrl(key string) (string, error)
 
-	DownloadUrl(configs DownloadConfigs, key string) ([]*DownloadUrl, error)
+	DownloadUrl(key string) ([]*DownloadUrl, error)
 }
 
 type DriveConfig interface {
@@ -53,46 +53,42 @@ const (
 
 type Property struct {
 	Name     string   `json:"name"`
+	Label    string   `json:"label"`
 	PropType PropType `json:"type"`
 	Required bool     `json:"required"`
 	Usage    string   `json:"usage"`
 }
 
-type DriveType struct {
-	ShowName string
-	Name     string
-}
-
-type Properties struct {
-	ShowName   string
-	properties []Property
+type DriveConfigProp struct {
+	Name       string     `json:"name"`
+	ShowName   string     `json:"showname"`
+	Properties []Property `json:"properties"`
 }
 
 var drivers map[string]Driver = map[string]Driver{}
 var driveConfigs map[string]DriveConfig = map[string]DriveConfig{}
-var driveProps map[DriveType]Properties = map[DriveType]Properties{}
+var driveProps map[string]DriveConfigProp = map[string]DriveConfigProp{}
 
-func RegsiterDriver(dtype DriveType, driver Driver, driveConfig DriveConfig) {
-	drivers[dtype.Name] = driver
-	driveConfigs[dtype.Name] = driveConfig
+func RegsiterDriver(name string, showName string, driver Driver, driveConfig DriveConfig) {
+	drivers[name] = driver
+	driveConfigs[name] = driveConfig
 
 	//解析driveConfig属性
 	confType := reflect.TypeOf(driveConfig).Elem()
-	properties := Properties{}
+	properties := []Property{}
 	for i := 0; i < confType.NumField(); i++ {
-		argname, usage, proptype, required := GetNameAndUsages(confType, i)
-		properties = append(properties, Property{
-			Name:     argname,
-			Required: required,
-			Usage:    usage,
-			PropType: proptype,
-		})
+		prop := GetNameAndUsages(confType, i)
+		properties = append(properties, prop)
 	}
-	driveProps[dtype] = properties
+	driveProps[name] = DriveConfigProp{
+		Name:       name,
+		ShowName:   showName,
+		Properties: properties,
+	}
 
 }
 
-func GetDriverProps() map[DriveType]Properties {
+func GetDriverProps() map[string]DriveConfigProp {
 	return driveProps
 }
 
@@ -114,18 +110,11 @@ func GetDriver(name string, config map[string]interface{}) (Driver, error) {
 	}
 
 	if driver, ok := drivers[name]; ok {
-		driver.initConfig(config)
+		driver.initConfig(driverconfig)
 		return driver, nil
 	}
 	return nil, errors.New("未找到合适的存储驱动")
 }
-
-type DownloadConfig struct {
-	Title string `yaml:"title"`
-	Url   string `yaml:"url"`
-}
-
-type DownloadConfigs []*DownloadConfig
 
 type Json map[string]interface{}
 
@@ -140,25 +129,30 @@ func (r UploaderFileStream) Read(p []byte) (n int, err error) {
 	return r.reader.Read(p)
 }
 
-func GetNameAndUsages(otype reflect.Type, i int) (string, string, PropType, bool) {
+func GetNameAndUsages(otype reflect.Type, i int) Property {
 	field := otype.Field(i)
 	name := field.Name
 	var argname string = strings.ToLower(name)
 
 	tag := field.Tag
 	tagvalue := tag.Get("arg")
-	arr := strings.Split(tagvalue, ",")
+	arr := strings.Split(tagvalue, ";")
 	if len(arr) >= 1 {
 		argname = arr[0]
 	}
 
-	var argusage string
+	var label string
 	if len(arr) >= 2 {
-		argusage = arr[1]
+		label = arr[1]
+	}
+
+	var argusage string
+	if len(arr) >= 3 {
+		argusage = arr[2]
 	}
 
 	required := false
-	if len(arr) >= 3 && arr[2] == "required" {
+	if len(arr) >= 4 && arr[3] == "required" {
 		required = true
 	}
 
@@ -177,5 +171,11 @@ func GetNameAndUsages(otype reflect.Type, i int) (string, string, PropType, bool
 		panic("不支持的数据类型")
 	}
 
-	return argname, argusage, proptype, required
+	return Property{
+		Name:     argname,
+		Label:    label,
+		PropType: proptype,
+		Required: required,
+		Usage:    argusage,
+	}
 }

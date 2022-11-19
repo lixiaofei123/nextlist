@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/go-yaml/yaml"
-	"github.com/lixiaofei123/nextlist/driver"
 )
 
 type Mysql struct {
@@ -33,9 +32,8 @@ type SiteConfig struct {
 }
 
 type DriverConfig struct {
-	Name     string                 `yaml:"name" json:"name"`
-	Config   map[string]interface{} `yaml:"config" json:"config"`
-	Download driver.DownloadConfigs `yaml:"download" json:"download"`
+	Name   string                 `yaml:"name" json:"name"`
+	Config map[string]interface{} `yaml:"config" json:"config"`
 }
 
 type Config struct {

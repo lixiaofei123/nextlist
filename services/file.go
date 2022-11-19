@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lixiaofei123/nextlist/configs"
 	"github.com/lixiaofei123/nextlist/driver"
 	fileerr "github.com/lixiaofei123/nextlist/errors"
 	models "github.com/lixiaofei123/nextlist/models"
@@ -158,7 +157,7 @@ func (f *fileService) FindChildFiles(username string, fileId string, password st
 
 		for index, file := range files {
 			if !file.IsDict.Bool {
-				files[index].DownloadUrls, _ = f.driver.DownloadUrl(configs.GlobalConfig.DriverConfig.Download, file.AbsolutePath)
+				files[index].DownloadUrls, _ = f.driver.DownloadUrl(file.AbsolutePath)
 			}
 
 		}
@@ -196,7 +195,7 @@ func (f *fileService) SearchFile(username, keyword string, page, count int) (*mo
 	files := []*models.File{}
 	for _, file := range allFiles {
 		if (file.Permission == models.PUBLICREAD || (file.Permission == models.USERREAD && username != "") || (file.UserName == username)) && file.Permission != models.PASSWORD {
-			file.DownloadUrls, _ = f.driver.DownloadUrl(configs.GlobalConfig.DriverConfig.Download, file.AbsolutePath)
+			file.DownloadUrls, _ = f.driver.DownloadUrl(file.AbsolutePath)
 			files = append(files, file)
 		}
 	}
@@ -236,7 +235,7 @@ func (f *fileService) FindById(username string, password, fileId string) (*model
 	}
 
 	if !file.IsDict.Bool {
-		file.DownloadUrls, _ = f.driver.DownloadUrl(configs.GlobalConfig.DriverConfig.Download, file.AbsolutePath)
+		file.DownloadUrls, _ = f.driver.DownloadUrl(file.AbsolutePath)
 	}
 
 	return file, nil

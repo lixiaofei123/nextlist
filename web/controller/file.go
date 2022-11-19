@@ -17,7 +17,7 @@ func NewFileController(fileSrv services.FileService) *FileController {
 	}
 }
 
-func (f *FileController) GetFileBy(ctx echo.Context, fileid string) mvc.Result {
+func (f *FileController) GetBy(ctx echo.Context, fileid string) mvc.Result {
 
 	username := ctx.Request().Header.Get("username")
 	password := utils.GetValueWithDefault(ctx, "password", "")
@@ -31,7 +31,7 @@ func (f *FileController) GetFileBy(ctx echo.Context, fileid string) mvc.Result {
 
 }
 
-func (f *FileController) GetFileBaseinfoBy(ctx echo.Context, fileid string) mvc.Result {
+func (f *FileController) GetBaseinfoBy(ctx echo.Context, fileid string) mvc.Result {
 
 	file, err := f.fileSrv.BaseInfo(fileid)
 	if err != nil {
@@ -73,7 +73,7 @@ func (f *FileController) GetDir(ctx echo.Context) mvc.Result {
 	return HandleData(result, nil)
 }
 
-func (f *FileController) PostCountFile(ctx echo.Context) mvc.Result {
+func (f *FileController) PostCount(ctx echo.Context) mvc.Result {
 
 	results, err := f.fileSrv.CountFiles()
 	if err != nil {
@@ -83,7 +83,7 @@ func (f *FileController) PostCountFile(ctx echo.Context) mvc.Result {
 	return HandleData(results, nil)
 }
 
-func (f *FileController) PostSearchFile(ctx echo.Context) mvc.Result {
+func (f *FileController) PostSearch(ctx echo.Context) mvc.Result {
 
 	keyword := utils.GetValueWithDefault(ctx, "keyword", "")
 	username := ctx.Request().Header.Get("username")
