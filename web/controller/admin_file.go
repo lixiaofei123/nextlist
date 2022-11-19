@@ -121,7 +121,7 @@ func (f *AdminFileController) Post(ctx echo.Context, parentid string) mvc.Result
 	return f.PostFileBy(ctx, "")
 }
 
-func (f *AdminFileController) DeleteBy(ctx echo.Context, fileid string) mvc.Result {
+func (f *AdminFileController) DeleteFileBy(ctx echo.Context, fileid string) mvc.Result {
 
 	username := ctx.Request().Header.Get("username")
 	file, err := f.fileSrv.DeleteFile(username, fileid)

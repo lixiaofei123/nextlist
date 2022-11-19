@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	echo "github.com/labstack/echo/v4"
 	echo_middleware "github.com/labstack/echo/v4/middleware"
@@ -65,7 +66,7 @@ func main() {
 		return IPAddress
 	}
 
-	sdriver, debug, err := initApp()
+	sdriver, debug, loaderr := initApp()
 	if debug {
 		e.Use(echo_middleware.Logger())
 	}
@@ -83,7 +84,7 @@ func main() {
 	api := e.Group("/api/v1")
 
 	api.Add("POST", "/site/status", func(ctx echo.Context) error {
-		if err != nil {
+		if loaderr != nil {
 			ctx.Response().Writer.Write([]byte(`{"ready":false}`))
 		} else {
 			ctx.Response().Writer.Write([]byte(`{"ready":true}`))
@@ -91,66 +92,105 @@ func main() {
 
 		return nil
 	})
-	if err != nil {
+
+	registerServiceRoutes := func() {
+		gormDebugLevel := gormlogger.Error
+		if debug {
+			gormDebugLevel = gormlogger.Info
+		}
+
+		db, err := gorm.Open(mysql.Open(fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+			configs.GlobalConfig.DataBase.Mysql.Username,
+			configs.GlobalConfig.DataBase.Mysql.Password,
+			configs.GlobalConfig.DataBase.Mysql.Url,
+			configs.GlobalConfig.DataBase.Mysql.Port,
+			configs.GlobalConfig.DataBase.Mysql.Database,
+		)), &gorm.Config{
+			Logger: gormlogger.Default.LogMode(gormDebugLevel),
+		})
+
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = db.AutoMigrate(&models.User{})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = db.AutoMigrate(&models.File{})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		driverConfig := configs.GlobalConfig.DriverConfig
+		driverName := driverConfig.Name
+
+		sdriver, err = driver.GetDriver(driverName, driverConfig.Config)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = sdriver.InitDriver(api, db)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		userSrv := services.NewUserService(db)
+		fileSrv := services.NewFileService(db, sdriver)
+
+		user := api.Group("/user")
+		user.Use(middleware.NotMustAuthHandler)
+		mvc.New(user).Handle(controller.NewUserController(userSrv))
+
+		file := api.Group("/file")
+		file.Use(middleware.NotMustAuthHandler)
+		mvc.New(file).Handle(controller.NewFileController(fileSrv))
+
+		adminapi := api.Group("/admin")
+		adminapi.Use(middleware.AuthHandler)
+		mvc.New(adminapi).Handle(controller.NewAdminFileController(fileSrv, sdriver))
+
+		siteapi := api.Group("/site")
+		mvc.New(siteapi).Handle(controller.NewSiteController(userSrv))
+
+		log.Println("程序已经运行......")
+	}
+
+	if loaderr != nil {
 		// 站点未初始化，需要先进行初始化后再使用
 		init := api.Group("/init")
+		init.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(ctx echo.Context) error {
+				path := ctx.Request().URL.Path
+				if strings.Contains(path, "/api/v1/init") && loaderr == nil {
+					ctx.JSON(http.StatusNotFound, controller.DataResponse{
+						Code: http.StatusNotFound,
+						Data: "站点已经初始化完毕，请勿调用",
+					})
+					return nil
+				}
+				return next(ctx)
+			}
+		})
+
 		mvc.New(init).Handle(controller.NewInitController())
+
+		init.Add("POST", "/reload", func(ctx echo.Context) error {
+			cerr := configs.InitConfig()
+			if cerr != nil {
+				return cerr
+			}
+			registerServiceRoutes()
+			loaderr = nil
+			return nil
+		})
+
 		log.Println("初始化程序已经运行......")
 		e.Logger.Fatal(e.Start(":8081"))
 	}
 
-	gormDebugLevel := gormlogger.Error
-	if debug {
-		gormDebugLevel = gormlogger.Info
-	}
-
-	db, err := gorm.Open(mysql.Open(fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		configs.GlobalConfig.DataBase.Mysql.Username,
-		configs.GlobalConfig.DataBase.Mysql.Password,
-		configs.GlobalConfig.DataBase.Mysql.Url,
-		configs.GlobalConfig.DataBase.Mysql.Port,
-		configs.GlobalConfig.DataBase.Mysql.Database,
-	)), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormDebugLevel),
-	})
-
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = db.AutoMigrate(&models.User{})
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = db.AutoMigrate(&models.File{})
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = sdriver.InitDriver(api, db)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	userSrv := services.NewUserService(db)
-	fileSrv := services.NewFileService(db, sdriver)
-
-	user := api.Group("/user")
-	user.Use(middleware.NotMustAuthHandler)
-	mvc.New(user).Handle(controller.NewUserController(userSrv))
-
-	file := api.Group("/file")
-	file.Use(middleware.NotMustAuthHandler)
-	mvc.New(file).Handle(controller.NewFileController(fileSrv))
-
-	adminapi := api.Group("/admin")
-	adminapi.Use(middleware.AuthHandler)
-	mvc.New(adminapi).Handle(controller.NewAdminFileController(fileSrv, sdriver))
-
-	siteapi := api.Group("/site")
-	mvc.New(siteapi).Handle(controller.NewSiteController(userSrv))
-
-	log.Println("程序已经运行......")
+	registerServiceRoutes()
 	e.Logger.Fatal(e.Start(":8081"))
+
 }
