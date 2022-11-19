@@ -116,7 +116,7 @@ func (f *AdminFileController) PostFileBy(ctx echo.Context, parentid string) mvc.
 	return HandleData(file, nil)
 }
 
-func (f *AdminFileController) Post(ctx echo.Context, parentid string) mvc.Result {
+func (f *AdminFileController) PostFile(ctx echo.Context, parentid string) mvc.Result {
 
 	return f.PostFileBy(ctx, "")
 }
