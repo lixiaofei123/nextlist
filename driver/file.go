@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,42 +22,40 @@ import (
 )
 
 func init() {
-	RegsiterDriver("file", &FileDriver{})
+	RegsiterDriver("file", "文件存储", &FileDriver{}, &FileDriverConfig{})
 }
 
 type FileDriverConfig struct {
-	Path         string
-	Key          string
-	Host         string
-	SelfDownload bool
+	Path string `arg:"path;路径;文件存储路径;required" json:"path"`
+	Key  string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
+	Host string `arg:"host;服务地址;Nextlist服务地址;required" json:"host"`
 }
 
 type FileDriver struct {
 	config FileDriverConfig
 }
 
-func (d *FileDriver) InitConfig(config interface{}) error {
+func (d *FileDriver) initConfig(config interface{}) error {
 
-	data, err := json.Marshal(config)
-	if err != nil {
-		return err
-	}
-
-	fileconfig := new(FileDriverConfig)
-	err = json.Unmarshal(data, fileconfig)
-	if err != nil {
-		return err
-	}
-
+	fileconfig := config.(*FileDriverConfig)
 	d.config = *fileconfig
 
 	return nil
-
 }
 
 const timeLayout string = "2006-01-02 15:04:05"
 
-func (d *FileDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
+func (d *FileDriver) Check() error {
+	tempPath := path.Join(d.config.Path, "test_temp")
+	err := ioutil.WriteFile(tempPath, []byte("test!!!"), 0755)
+	if err != nil {
+		return err
+	}
+	return os.Remove(tempPath)
+
+}
+
+func (d *FileDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 
 	checkSignMiddleware := func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) error {
@@ -102,7 +99,7 @@ func (d *FileDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
 		}
 	}
 
-	e.PUT("/api/driver/file", func(ctx echo.Context) error {
+	e.PUT("/driver/file", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
 
@@ -134,7 +131,7 @@ func (d *FileDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
 		return nil
 	}, checkSignMiddleware)
 
-	e.DELETE("/api/driver/file", func(ctx echo.Context) error {
+	e.DELETE("/driver/file", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
 		absPath := path.Join(d.config.Path, filepath)
@@ -143,7 +140,7 @@ func (d *FileDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
 		return nil
 	}, checkSignMiddleware)
 
-	e.GET("/api/driver/file", func(ctx echo.Context) error {
+	e.GET("/driver/file", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
 		absPath := path.Join(d.config.Path, filepath)
@@ -248,7 +245,7 @@ func (d *FileDriver) PreUploadUrl(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/api/driver/file?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
+	return fmt.Sprintf("%s/api/v1/driver/file?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
 }
 
 func (d *FileDriver) PreDeleteUrl(path string) (string, error) {
@@ -264,34 +261,24 @@ func (d *FileDriver) PreDeleteUrl(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/api/driver/file?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
+	return fmt.Sprintf("%s/api/v1/driver/file?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
 }
 
-func (d *FileDriver) DownloadUrl(configs DownloadConfigs, path string) ([]*DownloadUrl, error) {
+func (d *FileDriver) DownloadUrl(path string) ([]*DownloadUrl, error) {
 
 	downloadUrls := []*DownloadUrl{}
 
-	if d.config.SelfDownload {
-		expireTime := time.Now().Add(time.Hour * 2)
-		expireTimeStr := expireTime.Format(timeLayout)
+	expireTime := time.Now().Add(time.Hour * 2)
+	expireTimeStr := expireTime.Format(timeLayout)
 
-		key := d.config.Key
-		method := jwt.GetSigningMethod("HS256")
+	key := d.config.Key
+	method := jwt.GetSigningMethod("HS256")
 
-		sign, err := method.Sign(fmt.Sprintf("%s-%s", path, expireTimeStr), []byte(key))
-		if err == nil {
-			downloadUrls = append(downloadUrls, &DownloadUrl{
-				Title:       "原始链接",
-				DownloadUrl: fmt.Sprintf("%s/api/driver/file?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign),
-			})
-		}
-
-	}
-
-	for _, config := range configs {
+	sign, err := method.Sign(fmt.Sprintf("%s-%s", path, expireTimeStr), []byte(key))
+	if err == nil {
 		downloadUrls = append(downloadUrls, &DownloadUrl{
-			Title:       config.Title,
-			DownloadUrl: fmt.Sprintf("%s%s", config.Url, path),
+			Title:       "原始链接",
+			DownloadUrl: fmt.Sprintf("%s/api/v1/driver/file?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign),
 		})
 	}
 

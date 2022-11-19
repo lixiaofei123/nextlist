@@ -27,17 +27,17 @@ var refreshTokenLock sync.Locker
 
 func init() {
 	refreshTokenLock = &sync.Mutex{}
-	RegsiterDriver("onedriver", &OneDriver{})
+	RegsiterDriver("onedriver", "OneDriver", &OneDriver{}, &OneDriverConfig{})
 }
 
 type OneDriverConfig struct {
-	RefreshToken string
-	ClientID     string
-	ClientSecret string
-	RedirectUrl  string
-	Key          string
-	Host         string
-	Path         string
+	RefreshToken string `arg:"refreshToken;刷新Token;OneDriver所使用的刷新Token;required" json:"refreshToken"`
+	ClientID     string `arg:"clientID;应用ID;注册的应用的ID;required" json:"clientID"`
+	ClientSecret string `arg:"clientSecret;应用密钥;应用密钥;required" json:"clientSecret"`
+	RedirectUrl  string `arg:"refirectUrl;跳转地址;暂时固定为https://tool.nn.ci/onedrive/callback;required" json:"refirectUrl"`
+	Path         string `arg:"path;目录;要作为列表的onedriver的目录;required" json:"key"`
+	Key          string `arg:"key;签名key;部分接口所需要使用的签名key，随意填写;required" json:"host"`
+	Host         string `arg:"host;服务地址;Nextlist服务地址;required" json:"path"`
 }
 
 type OneDriver struct {
@@ -45,40 +45,36 @@ type OneDriver struct {
 	AccessToken string
 }
 
-func (d *OneDriver) InitConfig(config interface{}) error {
+func (d *OneDriver) Check() error {
+	_, err := d.listDir("")
+	return err
 
-	data, err := json.Marshal(config)
-	if err != nil {
-		return err
-	}
+}
 
-	onedriveConfig := new(OneDriverConfig)
-	err = json.Unmarshal(data, onedriveConfig)
-	if err != nil {
-		return err
-	}
+func (d *OneDriver) initConfig(config interface{}) error {
 
+	onedriveConfig := config.(*OneDriverConfig)
 	d.config = *onedriveConfig
 
 	if d.config.Path == "" {
 		d.config.Path = "/"
 	}
 
-	err = d.RefresonToken()
+	err := d.refreshToken()
 	if err != nil {
 		return err
 	}
 
 	cron.New().AddFunc("@midnight", func() {
 		fmt.Println("定时刷新token")
-		d.RefresonToken()
+		d.refreshToken()
 	})
 
 	return nil
 
 }
 
-func (d *OneDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
+func (d *OneDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 
 	checkSignMiddleware := func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) error {
@@ -122,7 +118,7 @@ func (d *OneDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
 		}
 	}
 
-	e.PUT("/api/driver/onedriver", func(ctx echo.Context) error {
+	e.PUT("/driver/onedriver", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
 		dataLength := utils.GetIntValueFromAnywhere(ctx, "Content-Length")
@@ -142,14 +138,14 @@ func (d *OneDriver) InitDriver(e *echo.Echo, db *gorm.DB) error {
 
 	}, checkSignMiddleware)
 
-	e.DELETE("/api/driver/onedriver", func(ctx echo.Context) error {
+	e.DELETE("/driver/onedriver", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
 		return d.Delete(filepath)
 
 	}, checkSignMiddleware)
 
-	e.GET("/api/driver/onedriver", func(ctx echo.Context) error {
+	e.GET("/driver/onedriver", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
 
@@ -253,7 +249,7 @@ func (d *OneDriver) PreUploadUrl(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/api/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
+	return fmt.Sprintf("%s/api/v1/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
 }
 
 func (d *OneDriver) PreDeleteUrl(path string) (string, error) {
@@ -269,10 +265,10 @@ func (d *OneDriver) PreDeleteUrl(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/api/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
+	return fmt.Sprintf("%s/api/v1/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
 }
 
-func (d *OneDriver) DownloadUrl(configs DownloadConfigs, path string) ([]*DownloadUrl, error) {
+func (d *OneDriver) DownloadUrl(path string) ([]*DownloadUrl, error) {
 
 	downloadUrls := []*DownloadUrl{}
 
@@ -286,7 +282,7 @@ func (d *OneDriver) DownloadUrl(configs DownloadConfigs, path string) ([]*Downlo
 	if err == nil {
 		downloadUrls = append(downloadUrls, &DownloadUrl{
 			Title:       "OneDriver高速下载线路",
-			DownloadUrl: fmt.Sprintf("%s/api/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign),
+			DownloadUrl: fmt.Sprintf("%s/api/v1/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign),
 		})
 	}
 
@@ -310,7 +306,7 @@ func (d *OneDriver) Delete(path string) error {
 	}
 
 	if resp.StatusCode == 401 {
-		err = d.RefresonToken()
+		err = d.refreshToken()
 		if err != nil {
 			return err
 		} else {
@@ -345,7 +341,7 @@ func (d *OneDriver) Link(path string) (string, error) {
 	}
 
 	if resp.StatusCode == 401 {
-		err = d.RefresonToken()
+		err = d.refreshToken()
 		if err != nil {
 			return "", err
 		} else {
@@ -423,7 +419,7 @@ func (d *OneDriver) uploadLargeFile(file UploaderFileStream, forceWrite bool) er
 	}
 
 	if resp.StatusCode == 401 {
-		err = d.RefresonToken()
+		err = d.refreshToken()
 		if err != nil {
 			return err
 		} else {
@@ -487,7 +483,7 @@ func (d *OneDriver) uploadLargeFile(file UploaderFileStream, forceWrite bool) er
 		}
 
 		if resp.StatusCode == 401 {
-			err = d.RefresonToken()
+			err = d.refreshToken()
 			if err != nil {
 				return err
 			} else {
@@ -536,7 +532,7 @@ func (d *OneDriver) uploadFile(file UploaderFileStream, forceWrite bool) error {
 	}
 
 	if resp.StatusCode == 401 {
-		err = d.RefresonToken()
+		err = d.refreshToken()
 		if err != nil {
 			return err
 		} else {
@@ -578,7 +574,7 @@ func (d *OneDriver) listDir(path string) ([]*ODFile, error) {
 	}
 
 	if resp.StatusCode == 401 {
-		err = d.RefresonToken()
+		err = d.refreshToken()
 		if err != nil {
 			return nil, err
 		} else {
@@ -628,7 +624,7 @@ type OnedriverTokenResp struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func (d *OneDriver) RefresonToken() error {
+func (d *OneDriver) refreshToken() error {
 
 	refreshTokenLock.Lock()
 	defer refreshTokenLock.Unlock()

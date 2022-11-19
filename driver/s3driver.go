@@ -1,8 +1,6 @@
 package driver
 
 import (
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -15,15 +13,15 @@ import (
 )
 
 func init() {
-	RegsiterDriver("s3", &S3Driver{})
+	RegsiterDriver("s3", "对象存储", &S3Driver{}, &S3DriverConfig{})
 }
 
 type S3DriverConfig struct {
-	SecretID  string
-	SecretKey string
-	Region    string
-	Endpoint  string
-	Bucket    string
+	SecretID  string `arg:"secretID;SecretID;对象存储的密钥ID;required" json:"secretID"`
+	SecretKey string `arg:"secretKey;SecretKey;对象存储的密钥Key;required" json:"secretKey"`
+	Region    string `arg:"region;区域;对象存储所在区域;required" json:"region"`
+	Endpoint  string `arg:"endpoint;Endpoint;endpoint地址;required" json:"endpoint"`
+	Bucket    string `arg:"bucket;Bucket;bucket名称;required" json:"bucket"`
 }
 
 type S3Driver struct {
@@ -31,19 +29,14 @@ type S3Driver struct {
 	Bucket string
 }
 
-func (d *S3Driver) InitConfig(config interface{}) error {
+func (d *S3Driver) Check() error {
+	_, err := d.PreUploadUrl("/test_temp.log")
+	return err
+}
 
-	data, err := json.Marshal(config)
-	if err != nil {
-		return err
-	}
+func (d *S3Driver) initConfig(config interface{}) error {
 
-	s3config := new(S3DriverConfig)
-	err = json.Unmarshal(data, s3config)
-	if err != nil {
-		return err
-	}
-
+	s3config := config.(*S3DriverConfig)
 	creds := credentials.NewStaticCredentials(s3config.SecretID, s3config.SecretKey, "")
 
 	d.config = &aws.Config{
@@ -59,7 +52,7 @@ func (d *S3Driver) InitConfig(config interface{}) error {
 
 }
 
-func (d *S3Driver) InitDriver(e *echo.Echo, db *gorm.DB) error {
+func (d *S3Driver) InitDriver(e *echo.Group, db *gorm.DB) error {
 	return nil
 }
 
@@ -102,42 +95,32 @@ func (d *S3Driver) PreDeleteUrl(key string) (string, error) {
 	return req.Presign(15 * time.Minute)
 }
 
-func (d *S3Driver) DownloadUrl(configs DownloadConfigs, key string) ([]*DownloadUrl, error) {
+func (d *S3Driver) DownloadUrl(key string) ([]*DownloadUrl, error) {
 
 	var downloads []*DownloadUrl = []*DownloadUrl{}
 
-	if len(configs) != 0 {
-		for _, config := range configs {
-			downloads = append(downloads, &DownloadUrl{
-				Title:       config.Title,
-				DownloadUrl: fmt.Sprintf("%s%s", config.Url, key),
-			})
-		}
-	} else {
-		sess, err := session.NewSession(d.config)
+	sess, err := session.NewSession(d.config)
 
-		if err != nil {
-			return nil, err
-		}
-
-		svc := s3.New(sess)
-
-		req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
-			Bucket: aws.String(d.Bucket),
-			Key:    aws.String(key),
-		})
-
-		downloadUrl, err := req.Presign(15 * time.Minute)
-		if err != nil {
-			return nil, err
-		}
-
-		downloads = append(downloads, &DownloadUrl{
-			Title:       "下载地址",
-			DownloadUrl: downloadUrl,
-		})
-
+	if err != nil {
+		return nil, err
 	}
+
+	svc := s3.New(sess)
+
+	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(d.Bucket),
+		Key:    aws.String(key),
+	})
+
+	downloadUrl, err := req.Presign(15 * time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	downloads = append(downloads, &DownloadUrl{
+		Title:       "下载地址",
+		DownloadUrl: downloadUrl,
+	})
 
 	return downloads, nil
 }

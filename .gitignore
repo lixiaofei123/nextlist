@@ -1,3 +1,4 @@
 vendor/
 nextlist*
 config.yaml
+__debug_bin

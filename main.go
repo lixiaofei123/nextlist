@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	echo "github.com/labstack/echo/v4"
 	echo_middleware "github.com/labstack/echo/v4/middleware"
@@ -21,34 +22,28 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-var debug bool
-var sdriver driver.Driver
-
-func init() {
+func initApp() (driver.Driver, bool, error) {
 
 	var err error
+	var debug bool
 
-	var configPath string
-	flag.StringVar(&configPath, "c", "./config.yaml", "配置文件地址")
 	flag.BoolVar(&debug, "d", false, "debug mode")
 	flag.Parse()
 
-	err = configs.InitConfig(configPath)
+	err = configs.InitConfig()
+	if err != nil {
+		return nil, false, err
+	}
+
+	driverConfig := configs.GlobalConfig.DriverConfig
+	driverName := driverConfig.Name
+
+	sdriver, err := driver.GetDriver(driverName, driverConfig.Config)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	driverName := configs.GlobalConfig.DriverConfig.Name
-
-	sdriver, err = driver.GetDriver(driverName)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = sdriver.InitConfig(configs.GlobalConfig.DriverConfig.Config)
-	if err != nil {
-		log.Panic(err)
-	}
+	return sdriver, debug, nil
 }
 
 func CustomHTTPErrorHandler(err error, c echo.Context) {
@@ -58,35 +53,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 
 func main() {
 
-	gormDebugLevel := gormlogger.Error
-	if debug {
-		gormDebugLevel = gormlogger.Info
-	}
-
-	db, err := gorm.Open(mysql.Open(fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		configs.GlobalConfig.DataBase.Mysql.Username,
-		configs.GlobalConfig.DataBase.Mysql.Password,
-		configs.GlobalConfig.DataBase.Mysql.Url,
-		configs.GlobalConfig.DataBase.Mysql.Port,
-		configs.GlobalConfig.DataBase.Mysql.Database,
-	)), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormDebugLevel),
-	})
-
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = db.AutoMigrate(&models.User{})
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = db.AutoMigrate(&models.File{})
-	if err != nil {
-		log.Panic(err)
-	}
-
+	// 初始化echo
 	e := echo.New()
 	e.IPExtractor = func(r *http.Request) string {
 		IPAddress := r.Header.Get("X-Real-Ip")
@@ -98,17 +65,11 @@ func main() {
 		}
 		return IPAddress
 	}
+
+	sdriver, debug, loaderr := initApp()
 	if debug {
 		e.Use(echo_middleware.Logger())
 	}
-
-	err = sdriver.InitDriver(e, db)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	userSrv := services.NewUserService(db)
-	fileSrv := services.NewFileService(db, sdriver)
 
 	e.Use(echo_middleware.Recover())
 	e.Use(echo_middleware.CORSWithConfig(echo_middleware.CORSConfig{
@@ -120,20 +81,116 @@ func main() {
 
 	e.HTTPErrorHandler = CustomHTTPErrorHandler
 
-	user := e.Group("/user")
-	user.Use(middleware.NotMustAuthHandler)
-	mvc.New(user).Handle(controller.NewUserController(userSrv))
+	api := e.Group("/api/v1")
 
-	api := e.Group("/api")
-	api.Use(middleware.NotMustAuthHandler)
-	mvc.New(api).Handle(controller.NewFileController(fileSrv))
+	api.Add("POST", "/site/status", func(ctx echo.Context) error {
+		if loaderr != nil {
+			ctx.Response().Writer.Write([]byte(`{"ready":false}`))
+		} else {
+			ctx.Response().Writer.Write([]byte(`{"ready":true}`))
+		}
 
-	adminapi := e.Group("/admin/api")
-	adminapi.Use(middleware.AuthHandler)
-	mvc.New(adminapi).Handle(controller.NewAdminFileController(fileSrv, sdriver))
+		return nil
+	})
 
-	siteapi := e.Group("/site")
-	mvc.New(siteapi).Handle(controller.NewSiteController(userSrv))
+	registerServiceRoutes := func() {
+		gormDebugLevel := gormlogger.Error
+		if debug {
+			gormDebugLevel = gormlogger.Info
+		}
 
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", configs.GlobalConfig.Port)))
+		db, err := gorm.Open(mysql.Open(fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+			configs.GlobalConfig.DataBase.Mysql.Username,
+			configs.GlobalConfig.DataBase.Mysql.Password,
+			configs.GlobalConfig.DataBase.Mysql.Url,
+			configs.GlobalConfig.DataBase.Mysql.Port,
+			configs.GlobalConfig.DataBase.Mysql.Database,
+		)), &gorm.Config{
+			Logger: gormlogger.Default.LogMode(gormDebugLevel),
+		})
+
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = db.AutoMigrate(&models.User{})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = db.AutoMigrate(&models.File{})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		driverConfig := configs.GlobalConfig.DriverConfig
+		driverName := driverConfig.Name
+
+		sdriver, err = driver.GetDriver(driverName, driverConfig.Config)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = sdriver.InitDriver(api, db)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		userSrv := services.NewUserService(db)
+		fileSrv := services.NewFileService(db, sdriver)
+
+		user := api.Group("/user")
+		user.Use(middleware.NotMustAuthHandler)
+		mvc.New(user).Handle(controller.NewUserController(userSrv))
+
+		file := api.Group("/file")
+		file.Use(middleware.NotMustAuthHandler)
+		mvc.New(file).Handle(controller.NewFileController(fileSrv))
+
+		adminapi := api.Group("/admin")
+		adminapi.Use(middleware.AuthHandler)
+		mvc.New(adminapi).Handle(controller.NewAdminFileController(fileSrv, sdriver))
+
+		siteapi := api.Group("/site")
+		mvc.New(siteapi).Handle(controller.NewSiteController(userSrv))
+
+		log.Println("程序已经运行......")
+	}
+
+	if loaderr != nil {
+		// 站点未初始化，需要先进行初始化后再使用
+		init := api.Group("/init")
+		init.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(ctx echo.Context) error {
+				path := ctx.Request().URL.Path
+				if strings.Contains(path, "/api/v1/init") && loaderr == nil {
+					ctx.JSON(http.StatusNotFound, controller.DataResponse{
+						Code: http.StatusNotFound,
+						Data: "站点已经初始化完毕，请勿调用",
+					})
+					return nil
+				}
+				return next(ctx)
+			}
+		})
+
+		mvc.New(init).Handle(controller.NewInitController())
+
+		init.Add("POST", "/reload", func(ctx echo.Context) error {
+			cerr := configs.InitConfig()
+			if cerr != nil {
+				return cerr
+			}
+			registerServiceRoutes()
+			loaderr = nil
+			return nil
+		})
+
+		log.Println("初始化程序已经运行......")
+		e.Logger.Fatal(e.Start(":8081"))
+	}
+
+	registerServiceRoutes()
+	e.Logger.Fatal(e.Start(":8081"))
+
 }
