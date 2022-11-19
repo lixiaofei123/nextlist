@@ -1,6 +1,8 @@
 package driver
 
 import (
+	"bytes"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,10 +29,27 @@ type S3DriverConfig struct {
 type S3Driver struct {
 	config *aws.Config
 	Bucket string
+	s3     *s3.S3
 }
 
 func (d *S3Driver) Check() error {
-	_, err := d.PreUploadUrl("/test_temp.log")
+
+	testdata := bytes.NewReader([]byte("data"))
+	key := fmt.Sprintf("%d", time.Now().Unix())
+	_, err := d.s3.PutObject(&s3.PutObjectInput{
+		Bucket: &d.Bucket,
+		Body:   testdata,
+		Key:    &key,
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = d.s3.DeleteObject(&s3.DeleteObjectInput{
+		Bucket: &d.Bucket,
+		Key:    &key,
+	})
+
 	return err
 }
 
@@ -48,6 +67,12 @@ func (d *S3Driver) initConfig(config interface{}) error {
 
 	d.Bucket = s3config.Bucket
 
+	sess, err := session.NewSession(d.config)
+	if err != nil {
+		return err
+	}
+	d.s3 = s3.New(sess)
+
 	return nil
 
 }
@@ -61,15 +86,7 @@ func (d *S3Driver) WalkDir(key string) (*File, error) {
 }
 func (d *S3Driver) PreUploadUrl(key string) (string, error) {
 
-	sess, err := session.NewSession(d.config)
-
-	if err != nil {
-		return "", err
-	}
-
-	svc := s3.New(sess)
-
-	req, _ := svc.PutObjectRequest(&s3.PutObjectInput{
+	req, _ := d.s3.PutObjectRequest(&s3.PutObjectInput{
 		Bucket: aws.String(d.Bucket),
 		Key:    aws.String(key),
 	})
@@ -79,15 +96,7 @@ func (d *S3Driver) PreUploadUrl(key string) (string, error) {
 
 func (d *S3Driver) PreDeleteUrl(key string) (string, error) {
 
-	sess, err := session.NewSession(d.config)
-
-	if err != nil {
-		return "", err
-	}
-
-	svc := s3.New(sess)
-
-	req, _ := svc.DeleteObjectRequest(&s3.DeleteObjectInput{
+	req, _ := d.s3.DeleteObjectRequest(&s3.DeleteObjectInput{
 		Bucket: aws.String(d.Bucket),
 		Key:    aws.String(key),
 	})
@@ -99,15 +108,7 @@ func (d *S3Driver) DownloadUrl(key string) ([]*DownloadUrl, error) {
 
 	var downloads []*DownloadUrl = []*DownloadUrl{}
 
-	sess, err := session.NewSession(d.config)
-
-	if err != nil {
-		return nil, err
-	}
-
-	svc := s3.New(sess)
-
-	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
+	req, _ := d.s3.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: aws.String(d.Bucket),
 		Key:    aws.String(key),
 	})
