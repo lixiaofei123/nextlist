@@ -1,6 +1,6 @@
 FROM bitnami/git:2.38.1 as code
 WORKDIR /code
-RUN git clone  -b v1.0.0.beta https://github.com/lixiaofei123/nextlist_web.git
+RUN git clone https://github.com/lixiaofei123/nextlist_web.git
 
 FROM node:14 AS web_build
 WORKDIR /build
