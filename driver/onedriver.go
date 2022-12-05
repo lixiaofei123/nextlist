@@ -34,9 +34,9 @@ type OneDriverConfig struct {
 	ClientID     string `arg:"clientID;应用ID;注册的应用的ID;required" json:"clientID"`
 	ClientSecret string `arg:"clientSecret;应用密钥;应用密钥;required" json:"clientSecret"`
 	RedirectUrl  string `arg:"refirectUrl;跳转地址;暂时固定为https://tool.nn.ci/onedrive/callback;required" json:"refirectUrl"`
-	Path         string `arg:"path;目录;要作为列表的onedriver的目录;required" json:"key"`
-	Key          string `arg:"key;签名key;部分接口所需要使用的签名key，随意填写;required" json:"host"`
-	Host         string `arg:"host;服务地址;Nextlist服务地址;required" json:"path"`
+	Path         string `arg:"path;目录;要作为列表的onedriver的目录;required" json:"path"`
+	Key          string `arg:"key;签名key;部分接口所需要使用的签名key，随意填写;required" json:"key"`
+	Host         string `arg:"host;服务地址;Nextlist服务地址;required" json:"host"`
 }
 
 type OneDriver struct {

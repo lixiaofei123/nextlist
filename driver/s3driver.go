@@ -27,7 +27,7 @@ type S3DriverConfig struct {
 	Endpoint  string `arg:"endpoint;Endpoint;endpoint地址;required" json:"endpoint"`
 	Bucket    string `arg:"bucket;Bucket;bucket名称;required" json:"bucket"`
 	Key       string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
-	Host      string `arg:"host;服务地址;Nextlist服务地址;required" json:"path"`
+	Host      string `arg:"host;服务地址;Nextlist服务地址;required" json:"host"`
 }
 
 type S3Driver struct {
