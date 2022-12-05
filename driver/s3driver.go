@@ -3,6 +3,7 @@ package driver
 import (
 	"bytes"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -11,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/labstack/echo/v4"
 	fileerr "github.com/lixiaofei123/nextlist/errors"
+	"github.com/lixiaofei123/nextlist/utils"
 	"gorm.io/gorm"
 )
 
@@ -24,12 +26,16 @@ type S3DriverConfig struct {
 	Region    string `arg:"region;区域;对象存储所在区域;required" json:"region"`
 	Endpoint  string `arg:"endpoint;Endpoint;endpoint地址;required" json:"endpoint"`
 	Bucket    string `arg:"bucket;Bucket;bucket名称;required" json:"bucket"`
+	Key       string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
+	Host      string `arg:"host;服务地址;Nextlist服务地址;required" json:"path"`
 }
 
 type S3Driver struct {
 	config *aws.Config
 	Bucket string
 	s3     *s3.S3
+	key    string
+	host   string
 }
 
 func (d *S3Driver) Check() error {
@@ -66,6 +72,8 @@ func (d *S3Driver) initConfig(config interface{}) error {
 	}
 
 	d.Bucket = s3config.Bucket
+	d.key = s3config.Key
+	d.host = s3config.Host
 
 	sess, err := session.NewSession(d.config)
 	if err != nil {
@@ -78,6 +86,27 @@ func (d *S3Driver) initConfig(config interface{}) error {
 }
 
 func (d *S3Driver) InitDriver(e *echo.Group, db *gorm.DB) error {
+
+	e.GET("/driver/s3", func(ctx echo.Context) error {
+
+		filepath := utils.GetValue(ctx, "path")
+
+		req, _ := d.s3.GetObjectRequest(&s3.GetObjectInput{
+			Bucket: aws.String(d.Bucket),
+			Key:    aws.String(filepath),
+		})
+
+		downloadUrl, err := req.Presign(15 * time.Minute)
+		if err != nil {
+			return err
+		}
+
+		ctx.Response().Header().Add("Location", downloadUrl)
+		ctx.Response().WriteHeader(http.StatusMovedPermanently)
+
+		return nil
+	}, checkSignHandler(d.key))
+
 	return nil
 }
 
@@ -104,24 +133,17 @@ func (d *S3Driver) PreDeleteUrl(key string) (string, error) {
 	return req.Presign(15 * time.Minute)
 }
 
-func (d *S3Driver) DownloadUrl(key string) ([]*DownloadUrl, error) {
+func (d *S3Driver) DownloadUrl(path string) ([]*DownloadUrl, error) {
 
 	var downloads []*DownloadUrl = []*DownloadUrl{}
 
-	req, _ := d.s3.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(d.Bucket),
-		Key:    aws.String(key),
-	})
-
-	downloadUrl, err := req.Presign(15 * time.Minute)
-	if err != nil {
-		return nil, err
+	downloadUrl, err := signUrl(fmt.Sprintf("%s/api/v1/driver/s3", d.host), d.key, path, time.Hour*2)
+	if err == nil {
+		downloads = append(downloads, &DownloadUrl{
+			Title:       "下载地址",
+			DownloadUrl: downloadUrl,
+		})
 	}
-
-	downloads = append(downloads, &DownloadUrl{
-		Title:       "下载地址",
-		DownloadUrl: downloadUrl,
-	})
 
 	return downloads, nil
 }

@@ -81,9 +81,9 @@ func main() {
 
 	e.HTTPErrorHandler = CustomHTTPErrorHandler
 
-	api := e.Group("/api/v1")
+	apiv1 := e.Group("/api/v1")
 
-	api.Add("POST", "/site/status", func(ctx echo.Context) error {
+	apiv1.Add("POST", "/site/status", func(ctx echo.Context) error {
 		if loaderr != nil {
 			ctx.Response().Writer.Write([]byte(`{"ready":false}`))
 		} else {
@@ -131,7 +131,7 @@ func main() {
 			log.Panic(err)
 		}
 
-		err = sdriver.InitDriver(api, db)
+		err = sdriver.InitDriver(apiv1, db)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -139,19 +139,19 @@ func main() {
 		userSrv := services.NewUserService(db)
 		fileSrv := services.NewFileService(db, sdriver)
 
-		user := api.Group("/user")
+		user := apiv1.Group("/user")
 		user.Use(middleware.NotMustAuthHandler)
 		mvc.New(user).Handle(controller.NewUserController(userSrv))
 
-		file := api.Group("/file")
+		file := apiv1.Group("/file")
 		file.Use(middleware.NotMustAuthHandler)
 		mvc.New(file).Handle(controller.NewFileController(fileSrv))
 
-		adminapi := api.Group("/admin")
+		adminapi := apiv1.Group("/admin")
 		adminapi.Use(middleware.AuthHandler)
 		mvc.New(adminapi).Handle(controller.NewAdminFileController(fileSrv, sdriver))
 
-		siteapi := api.Group("/site")
+		siteapi := apiv1.Group("/site")
 		mvc.New(siteapi).Handle(controller.NewSiteController(userSrv))
 
 		log.Println("程序已经运行......")
@@ -159,7 +159,7 @@ func main() {
 
 	if loaderr != nil {
 		// 站点未初始化，需要先进行初始化后再使用
-		init := api.Group("/init")
+		init := apiv1.Group("/init")
 		init.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(ctx echo.Context) error {
 				path := ctx.Request().URL.Path

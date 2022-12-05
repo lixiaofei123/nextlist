@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	"github.com/lixiaofei123/nextlist/utils"
 	"github.com/robfig/cron/v3"
@@ -76,48 +75,6 @@ func (d *OneDriver) initConfig(config interface{}) error {
 
 func (d *OneDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 
-	checkSignMiddleware := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(ctx echo.Context) error {
-
-			// 检查连接的有效期
-			expireTimeStr := utils.GetValue(ctx, "expireTime")
-			if expireTimeStr == "" {
-				return errors.New("必须包含一个expireTime参数")
-			}
-
-			expireTime, err := time.Parse(timeLayout, expireTimeStr)
-			if err != nil {
-				return err
-			}
-
-			if expireTime.Before(time.Now()) {
-				return errors.New("链接已经失效")
-			}
-
-			path := utils.GetValue(ctx, "path")
-			if path == "" {
-				return errors.New("路径不能为空")
-			}
-
-			sign := utils.GetValue(ctx, "sign")
-			if sign == "" {
-				return errors.New("签名字符串不能为空")
-			}
-
-			key := d.config.Key
-			method := jwt.GetSigningMethod("HS256")
-
-			err = method.Verify(fmt.Sprintf("%s-%s", path, expireTimeStr), sign, []byte(key))
-			if err != nil {
-				return err
-			}
-
-			// 校验通过....
-
-			return next(ctx)
-		}
-	}
-
 	e.PUT("/driver/onedriver", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
@@ -136,14 +93,14 @@ func (d *OneDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 			reader:     body,
 		})
 
-	}, checkSignMiddleware)
+	}, checkSignHandler(d.config.Key))
 
 	e.DELETE("/driver/onedriver", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
 		return d.Delete(filepath)
 
-	}, checkSignMiddleware)
+	}, checkSignHandler(d.config.Key))
 
 	e.GET("/driver/onedriver", func(ctx echo.Context) error {
 
@@ -156,8 +113,9 @@ func (d *OneDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 
 		ctx.Response().Header().Add("Location", url)
 		ctx.Response().WriteHeader(http.StatusMovedPermanently)
+
 		return nil
-	}, checkSignMiddleware)
+	}, checkSignHandler(d.config.Key))
 
 	return nil
 }
@@ -237,52 +195,22 @@ func (d *OneDriver) WalkDir(key string) (*File, error) {
 }
 
 func (d *OneDriver) PreUploadUrl(path string) (string, error) {
-
-	expireTime := time.Now().Add(time.Hour * 2)
-	expireTimeStr := expireTime.Format(timeLayout)
-
-	key := d.config.Key
-	method := jwt.GetSigningMethod("HS256")
-
-	sign, err := method.Sign(fmt.Sprintf("%s-%s", path, expireTimeStr), []byte(key))
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s/api/v1/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
+	return signUrl(fmt.Sprintf("%s/api/v1/driver/onedriver", d.config.Host), d.config.Key, path, time.Hour*2)
 }
 
 func (d *OneDriver) PreDeleteUrl(path string) (string, error) {
-
-	expireTime := time.Now().Add(time.Hour * 2)
-	expireTimeStr := expireTime.Format(timeLayout)
-
-	key := d.config.Key
-	method := jwt.GetSigningMethod("HS256")
-
-	sign, err := method.Sign(fmt.Sprintf("%s-%s", path, expireTimeStr), []byte(key))
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s/api/v1/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign), nil
+	return signUrl(fmt.Sprintf("%s/api/v1/driver/onedriver", d.config.Host), d.config.Key, path, time.Hour*2)
 }
 
 func (d *OneDriver) DownloadUrl(path string) ([]*DownloadUrl, error) {
 
 	downloadUrls := []*DownloadUrl{}
 
-	expireTime := time.Now().Add(time.Hour * 2)
-	expireTimeStr := expireTime.Format(timeLayout)
-
-	key := d.config.Key
-	method := jwt.GetSigningMethod("HS256")
-
-	sign, err := method.Sign(fmt.Sprintf("%s-%s", path, expireTimeStr), []byte(key))
+	downloadUrl, err := signUrl(fmt.Sprintf("%s/api/v1/driver/onedriver", d.config.Host), d.config.Key, path, time.Hour*2)
 	if err == nil {
 		downloadUrls = append(downloadUrls, &DownloadUrl{
 			Title:       "OneDriver高速下载线路",
-			DownloadUrl: fmt.Sprintf("%s/api/v1/driver/onedriver?path=%s&expireTime=%s&sign=%s", d.config.Host, path, expireTimeStr, sign),
+			DownloadUrl: downloadUrl,
 		})
 	}
 
