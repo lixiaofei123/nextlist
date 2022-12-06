@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -11,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/labstack/echo/v4"
-	fileerr "github.com/lixiaofei123/nextlist/errors"
 	"github.com/lixiaofei123/nextlist/utils"
 	"gorm.io/gorm"
 )
@@ -110,8 +111,52 @@ func (d *S3Driver) InitDriver(e *echo.Group, db *gorm.DB) error {
 	return nil
 }
 
-func (d *S3Driver) WalkDir(key string) (*File, error) {
-	return nil, fileerr.ErrUnSupportOperation
+func (d *S3Driver) WalkDir(prefix string) (*File, error) {
+
+	root := File{
+		Childrens:    []*File{},
+		AbsolutePath: prefix,
+		Name:         path.Base(prefix),
+		IsDir:        true,
+	}
+
+	err := d.s3.ListObjectsV2Pages(&s3.ListObjectsV2Input{
+		Bucket:    aws.String(d.Bucket),
+		Prefix:    aws.String(prefix),
+		Delimiter: aws.String("/"),
+	}, func(loo *s3.ListObjectsV2Output, b bool) bool {
+
+		for _, obj := range loo.Contents {
+			path := *(obj.Key)
+			cur := root
+			path = strings.TrimLeft(path, prefix)
+			names := strings.Split(path, "/")
+			for _, name := range names {
+				for _, cfile := range cur.Childrens {
+					if cfile.Name == name {
+						cur = *cfile
+						break
+					}
+				}
+
+				cur.IsDir = true
+				cur.Size = 0
+				cur.Childrens = append(cur.Childrens, &File{
+					Name:  name,
+					IsDir: false,
+					Size:  *obj.Size,
+				})
+			}
+		}
+
+		return b
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &root, nil
 }
 func (d *S3Driver) PreUploadUrl(key string) (string, error) {
 
