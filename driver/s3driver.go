@@ -137,7 +137,7 @@ func (d *S3Driver) DownloadUrl(path string) ([]*DownloadUrl, error) {
 
 	var downloads []*DownloadUrl = []*DownloadUrl{}
 
-	downloadUrl, err := signUrl(fmt.Sprintf("%s/api/v1/driver/s3", d.host), d.key, path, time.Hour*2)
+	downloadUrl, err := signUrl(fmt.Sprintf("%s/api/v1/driver/s3", d.host), d.key, path, time.Minute*10)
 	if err == nil {
 		downloads = append(downloads, &DownloadUrl{
 			Title:       "下载地址",
