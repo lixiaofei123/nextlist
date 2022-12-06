@@ -20,7 +20,9 @@ func checkSignHandler(key string) echo.MiddlewareFunc {
 				return errors.New("必须包含一个expireTime参数")
 			}
 
-			expireTime, err := time.Parse(timeLayout, expireTimeStr)
+			now := time.Now()
+
+			expireTime, err := time.ParseInLocation(timeLayout, expireTimeStr, now.Location())
 			if err != nil {
 				return err
 			}
@@ -53,7 +55,7 @@ func checkSignHandler(key string) echo.MiddlewareFunc {
 	}
 }
 
-const timeLayout string = "2006-01-02 15:04:05"
+const timeLayout string = "2006-01-02 15:04:05 "
 
 func signUrl(url string, key string, path string, expireDuration time.Duration) (string, error) {
 
