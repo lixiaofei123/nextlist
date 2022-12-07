@@ -136,6 +136,7 @@ func (d *S3Driver) WalkDir(prefix string) (*File, error) {
 	}, func(loo *s3.ListObjectsV2Output, b bool) bool {
 		for _, obj := range loo.Contents {
 			key := *(obj.Key)
+			fmt.Println("path-->", key)
 			cur := &root
 			key = strings.TrimPrefix(key, prefix)
 			names := strings.Split(key, "/")
@@ -159,12 +160,14 @@ func (d *S3Driver) WalkDir(prefix string) (*File, error) {
 				if !find {
 					cur.IsDir = true
 					cur.Size = 0
-					cur.Childrens = append(cur.Childrens, &File{
+					newfile := &File{
 						Name:         name,
 						IsDir:        isDir,
 						Size:         *obj.Size,
 						AbsolutePath: path.Join(cur.AbsolutePath, name),
-					})
+					}
+					cur.Childrens = append(cur.Childrens, newfile)
+					cur = newfile
 				}
 
 			}
