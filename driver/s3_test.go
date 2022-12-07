@@ -2,31 +2,26 @@ package driver
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
 func Test_S3alkDir(t *testing.T) {
 
 	config := S3DriverConfig{
-		SecretID:  "AKIDUqztZ2HLBxhJnAJFxWu7A9yZ0qW2WFyU",
-		SecretKey: "RholV0aVFzYu3ye9UjpiNpFXgfO3jO5h",
-		Region:    "ap-nanjing",
-		Endpoint:  "nextlist-1303112930.cos.ap-nanjing.myqcloud.com",
-		Bucket:    "nextlist-1303112930",
+		SecretID:    "xxxx",
+		SecretKey:   "yyyy",
+		Region:      "oss-cn-shenzhen",
+		Endpoint:    "oss-cn-shenzhen.aliyuncs.com",
+		Bucket:      "huiyuanai",
+		ForceS3Path: false,
 	}
-
-	// config := S3DriverConfig{
-	// 	SecretID:  "QUqIXEUWqJEgqJ3D",
-	// 	SecretKey: "I0NWL3NU9VFgHrC8BgCkl3iNk7eioU",
-	// 	Region:    "oss-cn-shenzhen",
-	// 	Endpoint:  "oss-cn-shenzhen.aliyuncs.com",
-	// 	Bucket:    "huiyuanai",
-	// }
 
 	sdriver := S3Driver{}
 	sdriver.initConfig(&config)
 
-	f, err := sdriver.WalkDir("软件/")
+	f, err := sdriver.WalkDir("/test")
+
 	if err != nil {
 		t.Fail()
 	}
@@ -36,5 +31,5 @@ func Test_S3alkDir(t *testing.T) {
 		t.Fail()
 	}
 
-	t.Log(string(data))
+	fmt.Println(string(data))
 }
