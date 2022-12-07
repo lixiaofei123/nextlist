@@ -11,16 +11,16 @@ func Test_S3alkDir(t *testing.T) {
 	config := S3DriverConfig{
 		SecretID:    "xxxx",
 		SecretKey:   "yyyy",
-		Region:      "oss-cn-shenzhen",
-		Endpoint:    "oss-cn-shenzhen.aliyuncs.com",
-		Bucket:      "huiyuanai",
-		ForceS3Path: false,
+		Region:      "ap-nanjing",
+		Endpoint:    "cos.ap-nanjing.myqcloud.com",
+		Bucket:      "xxxx",
+		ForceS3Path: true,
 	}
 
 	sdriver := S3Driver{}
 	sdriver.initConfig(&config)
 
-	f, err := sdriver.WalkDir("/test")
+	f, err := sdriver.WalkDir("/")
 
 	if err != nil {
 		t.Fail()
