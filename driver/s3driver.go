@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -11,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/labstack/echo/v4"
-	fileerr "github.com/lixiaofei123/nextlist/errors"
 	"github.com/lixiaofei123/nextlist/utils"
 	"gorm.io/gorm"
 )
@@ -21,13 +22,14 @@ func init() {
 }
 
 type S3DriverConfig struct {
-	SecretID  string `arg:"secretID;SecretID;对象存储的密钥ID;required" json:"secretID"`
-	SecretKey string `arg:"secretKey;SecretKey;对象存储的密钥Key;required" json:"secretKey"`
-	Region    string `arg:"region;区域;对象存储所在区域;required" json:"region"`
-	Endpoint  string `arg:"endpoint;Endpoint;endpoint地址;required" json:"endpoint"`
-	Bucket    string `arg:"bucket;Bucket;bucket名称;required" json:"bucket"`
-	Key       string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
-	Host      string `arg:"host;服务地址;Nextlist服务地址;required" json:"host"`
+	SecretID    string `arg:"secretID;SecretID;对象存储的密钥ID;required" json:"secretID"`
+	SecretKey   string `arg:"secretKey;SecretKey;对象存储的密钥Key;required" json:"secretKey"`
+	Region      string `arg:"region;区域;对象存储所在区域;required" json:"region"`
+	Endpoint    string `arg:"endpoint;Endpoint;endpoint地址;required" json:"endpoint"`
+	Bucket      string `arg:"bucket;Bucket;bucket名称;required" json:"bucket"`
+	ForceS3Path bool   `arg:"forces3path;S3风格路径;强制使用S3风格的访问路径，部分对象存储需要开启;required" json:"forces3path"`
+	Key         string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
+	Host        string `arg:"host;服务地址;Nextlist服务地址;required" json:"host"`
 }
 
 type S3Driver struct {
@@ -67,7 +69,7 @@ func (d *S3Driver) initConfig(config interface{}) error {
 	d.config = &aws.Config{
 		Region:           aws.String(s3config.Region),
 		Endpoint:         &s3config.Endpoint,
-		S3ForcePathStyle: aws.Bool(true),
+		S3ForcePathStyle: aws.Bool(s3config.ForceS3Path),
 		Credentials:      creds,
 	}
 
@@ -110,8 +112,72 @@ func (d *S3Driver) InitDriver(e *echo.Group, db *gorm.DB) error {
 	return nil
 }
 
-func (d *S3Driver) WalkDir(key string) (*File, error) {
-	return nil, fileerr.ErrUnSupportOperation
+func (d *S3Driver) WalkDir(prefix string) (*File, error) {
+
+	prefix = strings.TrimLeft(prefix, "/")
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+
+	root := File{
+		Childrens:    []*File{},
+		AbsolutePath: fmt.Sprintf("/%s", prefix),
+		Name:         path.Base(prefix),
+		IsDir:        true,
+	}
+
+	if root.Name == "." {
+		root.Name = "/"
+	}
+
+	err := d.s3.ListObjectsV2Pages(&s3.ListObjectsV2Input{
+		Bucket: aws.String(d.Bucket),
+		Prefix: aws.String(prefix),
+	}, func(loo *s3.ListObjectsV2Output, b bool) bool {
+		for _, obj := range loo.Contents {
+			key := *(obj.Key)
+			cur := &root
+			key = strings.TrimPrefix(key, prefix)
+			names := strings.Split(key, "/")
+			isDir := false
+			if *obj.Size == 0 {
+				isDir = true
+			}
+			for _, name := range names {
+				if name == "" {
+					continue
+				}
+				find := false
+				for _, cfile := range cur.Childrens {
+					if cfile.Name == name {
+						cur = cfile
+						find = true
+						break
+					}
+				}
+
+				if !find {
+					cur.IsDir = true
+					cur.Size = 0
+					cur.Childrens = append(cur.Childrens, &File{
+						Name:         name,
+						IsDir:        isDir,
+						Size:         *obj.Size,
+						AbsolutePath: path.Join(cur.AbsolutePath, name),
+					})
+				}
+
+			}
+		}
+
+		return b
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &root, nil
 }
 func (d *S3Driver) PreUploadUrl(key string) (string, error) {
 
