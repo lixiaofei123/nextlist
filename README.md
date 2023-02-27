@@ -49,7 +49,7 @@ docker run --restart=always --name nextlist_db    -v /data/db/nextlist:/var/lib/
 #### 启动NextList
 
 ```
-docker run --restart=always --name nextlist --link  nextlist_db -v  /data/nextlist/config:/app/config/ -p 8080:80 mrlee326/nextlist:v1.0.0
+docker run -d --restart=always --name nextlist --link  nextlist_db -v  /data/nextlist/config:/app/config/ -p 8080:80 mrlee326/nextlist:v1.0.0
 ```
 
 请务必将容器的/app/config/目录挂载在宿主机的某个路径下，否则配置可能会丢失。
