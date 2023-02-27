@@ -30,7 +30,7 @@
 
 ## 部署说明
 
-**NextList** 使用前后端分离架构，另外还依赖了MYSQL(MariaDB)数据库。因此，需要分别部署数据库、前后端程序
+**NextList** 依赖了MYSQL(MariaDB)数据库。因此，需要先部署数据库再部署NextList
 
 
 ### Docker部署
@@ -75,7 +75,7 @@ docker run --restart=always --name nextlist --link  nextlist_db -v  /data/nextli
 
 ![首页](images/index.png)
 
-默认情况下，NextList只能管理通过本页面创建或者上传的文件，对于不是通过NextList上传的文件，可以通过页面中的同步按钮来进行数据的同步。(此功能暂不支持对象存储)
+默认情况下，NextList只能管理通过本页面创建或者上传的文件，对于不是通过NextList上传的文件，可以通过页面中的同步按钮来进行数据的同步。
 
 
 
