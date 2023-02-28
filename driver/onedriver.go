@@ -36,7 +36,7 @@ type OneDriverConfig struct {
 	RedirectUrl  string `arg:"refirectUrl;跳转地址;暂时固定为https://tool.nn.ci/onedrive/callback;required" json:"refirectUrl"`
 	Path         string `arg:"path;目录;要作为列表的onedriver的目录;required" json:"path"`
 	Key          string `arg:"key;签名key;部分接口所需要使用的签名key，随意填写;required" json:"key"`
-	Host         string `arg:"host;服务地址;服务地址;请修改为Nextlist的外网地址;required" json:"host"`
+	Host         string `arg:"host;服务地址;NextList服务地址,需要外网能够访问;required" json:"host"`
 }
 
 type OneDriver struct {
