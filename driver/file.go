@@ -26,7 +26,7 @@ func init() {
 type FileDriverConfig struct {
 	Path string `arg:"path;路径;文件存储路径;required" json:"path"`
 	Key  string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
-	Host string `arg:"host;服务地址;请修改为Nextlist的外网地址,不知道的话保持为空;required" json:"host"`
+	Host string `arg:"host;服务地址;请修改为Nextlist的外网地址;required" json:"host"`
 }
 
 type FileDriver struct {
