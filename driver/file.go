@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -23,27 +22,37 @@ func init() {
 	RegsiterDriver("file", "文件存储", &FileDriver{}, &FileDriverConfig{})
 }
 
+var nginx_path string = "/usr/share/nginx/html/upload/"
+
 type FileDriverConfig struct {
-	Path string `arg:"path;路径;文件存储路径;required" json:"path"`
-	Key  string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
-	Host string `arg:"host;服务地址;NextList服务地址,需要外网能够访问;required" json:"host"`
+	Path     string `arg:"path;路径;文件存储路径;required" json:"path"`
+	Key      string `arg:"key;签名key;部分接口所需要使用的签名key,随意填写;required" json:"key"`
+	Host     string `arg:"host;服务地址;NextList服务地址,需要外网能够访问;required" json:"host"`
+	UseNginx bool   `arg:"useNginx;使用Nginx;此模式下文件存储路径将被固定为/usr/share/nginx/html/upload/;required" josn:"useNginx"`
 }
 
 type FileDriver struct {
 	config FileDriverConfig
+	path   string
 }
 
 func (d *FileDriver) initConfig(config interface{}) error {
 
 	fileconfig := config.(*FileDriverConfig)
 	d.config = *fileconfig
+	d.path = d.config.Path
+	if d.config.UseNginx {
+		d.path = nginx_path
+		os.Mkdir(nginx_path, 0755)
+	}
 
 	return nil
 }
 
 func (d *FileDriver) Check() error {
-	tempPath := path.Join(d.config.Path, "test_temp")
-	err := ioutil.WriteFile(tempPath, []byte("test!!!"), 0755)
+
+	tempPath := path.Join(d.path, "test_temp")
+	err := os.WriteFile(tempPath, []byte("test!!!"), 0755)
 	if err != nil {
 		return err
 	}
@@ -60,7 +69,7 @@ func (d *FileDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 		body := ctx.Request().Body
 		defer body.Close()
 
-		absPath := path.Join(d.config.Path, filepath)
+		absPath := path.Join(d.path, filepath)
 		dir := path.Dir(absPath)
 
 		err := os.MkdirAll(dir, 0751)
@@ -88,7 +97,7 @@ func (d *FileDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 	e.DELETE("/driver/file", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
-		absPath := path.Join(d.config.Path, filepath)
+		absPath := path.Join(d.path, filepath)
 		os.Remove(absPath)
 		ctx.Response().Status = http.StatusOK
 		return nil
@@ -97,9 +106,9 @@ func (d *FileDriver) InitDriver(e *echo.Group, db *gorm.DB) error {
 	e.GET("/driver/file", func(ctx echo.Context) error {
 
 		filepath := utils.GetValue(ctx, "path")
-		absPath := path.Join(d.config.Path, filepath)
+		absPath := path.Join(d.path, filepath)
 
-		data, err := ioutil.ReadFile(absPath)
+		data, err := os.ReadFile(absPath)
 		if err != nil {
 			return err
 		}
@@ -132,7 +141,7 @@ func (d *FileDriver) WalkDir(key string) (*File, error) {
 		key = "/"
 	}
 
-	absPath := path.Join(d.config.Path, key)
+	absPath := path.Join(d.path, key)
 
 	var temp map[string]*File = map[string]*File{}
 
@@ -144,7 +153,7 @@ func (d *FileDriver) WalkDir(key string) (*File, error) {
 	}
 
 	formatPath := func(path string) string {
-		path = strings.TrimPrefix(path, d.config.Path)
+		path = strings.TrimPrefix(path, d.path)
 		path = strings.TrimRight(path, "/")
 		if path == "" || path == "." {
 			return "/"
@@ -199,13 +208,20 @@ func (d *FileDriver) DownloadUrl(path string) ([]*DownloadUrl, error) {
 
 	downloadUrls := []*DownloadUrl{}
 
-	downloadUrl, err := signUrl(fmt.Sprintf("%s/api/v1/driver/file", d.config.Host), d.config.Key, path, time.Hour*2)
-
-	if err == nil {
+	if d.config.UseNginx {
 		downloadUrls = append(downloadUrls, &DownloadUrl{
 			Title:       "下载链接",
-			DownloadUrl: downloadUrl,
+			DownloadUrl: fmt.Sprintf("%s/upload/%s", d.config.Host, path),
 		})
+	} else {
+		downloadUrl, err := signUrl(fmt.Sprintf("%s/api/v1/driver/file", d.config.Host), d.config.Key, path, time.Hour*2)
+
+		if err == nil {
+			downloadUrls = append(downloadUrls, &DownloadUrl{
+				Title:       "下载链接",
+				DownloadUrl: downloadUrl,
+			})
+		}
 	}
 
 	return downloadUrls, nil
