@@ -1,9 +1,11 @@
 package utils
 
+import "strings"
+
 var mimetypes map[string]string = map[string]string{}
 
 func FindMimetypeByExt(ext string) string {
-	mimetype, ok := mimetypes[ext]
+	mimetype, ok := mimetypes[strings.ToLower(ext)]
 	if ok {
 		return mimetype
 	}
