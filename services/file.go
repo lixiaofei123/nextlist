@@ -149,7 +149,7 @@ func (f *fileService) FindChildFiles(username string, fileId string, password st
 		}
 
 		files := []*models.File{}
-		if err := f.db.Model(&models.File{}).Where("parent_id = ?", fileId).Order("last_modify_time desc").Offset((page - 1) * count).Limit(count).Find(&files).Error; err != nil {
+		if err := f.db.Model(&models.File{}).Where("parent_id = ?", fileId).Order("last_modify_time asc").Offset((page - 1) * count).Limit(count).Find(&files).Error; err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, err
 			}
